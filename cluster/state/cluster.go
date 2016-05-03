@@ -63,6 +63,10 @@ type Cluster struct {
 	discovery         discovery.Backend
 	pendingContainers map[string]*pendingContainer
 
+	runningContainers map[string]*cluster.Container
+	stoppedContainers map[string]*cluster.Container
+  blockedContainers map[string]*cluster.Container
+
 	overcommitRatio float64
 	engineOpts      *cluster.EngineOpts
 	createRetry     int64
@@ -81,6 +85,9 @@ func NewCluster(scheduler *scheduler.Scheduler, TLSConfig *tls.Config, discovery
 		TLSConfig:         TLSConfig,
 		discovery:         discovery,
 		pendingContainers: make(map[string]*pendingContainer),
+		runningContainers: make(map[string]*cluster.Container),
+		stoppedContainers: make(map[string]*cluster.Container),
+		blockedContainers: make(map[string]*cluster.Container),
 		overcommitRatio:   0.05,
 		engineOpts:        engineOptions,
 		createRetry:       0,
@@ -113,6 +120,7 @@ func NewCluster(scheduler *scheduler.Scheduler, TLSConfig *tls.Config, discovery
 
 // Handle callbacks for the events
 func (c *Cluster) Handle(e *cluster.Event) error {
+	log.Debug("######EVENT##########")
 	log.Debug(e)
 	c.eventHandlers.Handle(e)
 	return nil
@@ -177,13 +185,13 @@ func (c *Cluster) StartContainer(container *cluster.Container, hostConfig *docke
 
 	//TODO start if ok, else add to waiting list and refresh if signal
 	if isAllDependanciesReady(c, affinities) {
-	  log.Info("ok")
-	} else {
-		time.Sleep(1000)
-		log.Info("must wait")
+	  log.Info("ok, start the container")
+		c.runningContainers[container.Names[0]] = container
+		return container.Engine.StartContainer(container.ID, hostConfig)
 	}
-
-	return container.Engine.StartContainer(container.ID, hostConfig)
+	log.Info("Container is not ready !")
+	c.blockedContainers[container.Names[0]] = container
+	return fmt.Errorf("Container %s is not ready, add to blocked", container.Names[0])
 }
 
 // CreateContainer aka schedule a brand new container into the cluster.
@@ -414,7 +422,6 @@ func (c *Cluster) monitorDiscovery(ch <-chan discovery.Entries, errCh <-chan err
 			for _, entry := range removed {
 				c.removeEngine(entry.String())
 			}
-
 			for _, entry := range added {
 				c.addEngine(entry.String())
 			}
@@ -756,6 +763,7 @@ func (c *Cluster) Import(source string, repository string, tag string, imageRead
 
 	wg.Wait()
 }
+
 
 // Containers returns all the containers in the cluster.
 func (c *Cluster) Containers() cluster.Containers {
