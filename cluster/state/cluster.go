@@ -113,6 +113,7 @@ func NewCluster(scheduler *scheduler.Scheduler, TLSConfig *tls.Config, discovery
 
 // Handle callbacks for the events
 func (c *Cluster) Handle(e *cluster.Event) error {
+	log.Debug(e)
 	c.eventHandlers.Handle(e)
 	return nil
 }
@@ -147,9 +148,22 @@ func contains(slice []string, item string) bool {
     return ok
 }
 
+func isAllDependanciesReady(c *Cluster, dependancies []string) bool {
+	for _, container := range c.Containers() {
+		for _, name := range container.Names {
+			if contains(dependancies, name) {
+				if cluster.StateString(container.Info.State) != "exited" {
+					return false;
+				}
+			}
+		}
+	}
+	return true;
+}
+
 // StartContainer starts a container
 func (c *Cluster) StartContainer(container *cluster.Container, hostConfig *dockerclient.HostConfig) error {
-	//TODO: Wait for dependencies finish
+	//Get dependancies
 	var affinities []string
 	for _, affinity := range container.Config.Affinities() {
 		r, _ := regexp.Compile(`container==(.*)`)
@@ -160,13 +174,15 @@ func (c *Cluster) StartContainer(container *cluster.Container, hostConfig *docke
 			}
 		}
 	}
-	for _, container := range c.Containers() {
-		for _, name := range container.Names {
-			if contains(affinities, name) {
-				log.Info(cluster.StateString(container.Info.State))
-			}
-		}
+
+	//TODO start if ok, else add to waiting list and refresh if signal
+	if isAllDependanciesReady(c, affinities) {
+	  log.Info("ok")
+	} else {
+		time.Sleep(1000)
+		log.Info("must wait")
 	}
+
 	return container.Engine.StartContainer(container.ID, hostConfig)
 }
 
