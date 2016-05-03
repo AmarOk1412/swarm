@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"reflect"
 
 	"golang.org/x/net/context"
 
@@ -660,39 +659,6 @@ func (e *Engine) updateSpecs() error {
 			return nil
 		}
 
-
-
-		func (e *Engine) TryToRestartContainers() error {
-			log.Info("Try to start blocked containers")
-			var err error
-			//TODO just blocked
-			opts := types.ContainerListOptions{
-				All:  true,
-				Size: false,
-			}
-			containers, err := e.apiClient.ContainerList(context.Background(), opts)
-			e.CheckConnectionErr(err)
-			if err != nil {
-				return err
-			}
-			hostConfig := &dockerclient.HostConfig{
-				MemorySwappiness: -1,
-			}
-
-			for _, c := range containers {
-				id := c.Names[0]
-				log.Info("#try " + id)
-				if hostConfig != nil {
-					err = e.client.StartContainer(id, hostConfig) //TODO No!!!! call the cluster
-				} else {
-					err = e.apiClient.ContainerStart(context.Background(), id)
-				}
-			}
-
-				return err
-			}
-
-
 			// Refresh the status of a container running on the engine. If `full` is true,
 			// the container will be inspected.
 			func (e *Engine) refreshContainer(ID string, full bool) (*Container, error) {
@@ -1188,11 +1154,9 @@ func (e *Engine) updateSpecs() error {
 									case "die", "kill", "oom", "pause", "start", "restart", "stop", "unpause", "rename", "exited":
 										switch msg.Action {
 										case "die", "kill", "stop", "exited":
+											e.emitEvent("container_finish")
 											log.Info("A container is finish : ")
 											log.Info(msg)
-											log.Info(reflect.TypeOf(msg))
-											//TODO if state, try to launch container ready
-											e.TryToRestartContainers()
 										default:
 										}
 										e.refreshContainer(msg.ID, true)

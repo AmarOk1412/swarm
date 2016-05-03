@@ -120,8 +120,10 @@ func NewCluster(scheduler *scheduler.Scheduler, TLSConfig *tls.Config, discovery
 
 // Handle callbacks for the events
 func (c *Cluster) Handle(e *cluster.Event) error {
-	log.Debug("######EVENT##########")
-	log.Debug(e)
+	switch e.Message.Status {
+	case "die", "kill", "stop", "exited":
+		TryToRestartContainers(c)
+	}
 	c.eventHandlers.Handle(e)
 	return nil
 }
@@ -168,6 +170,25 @@ func isAllDependanciesReady(c *Cluster, dependancies []string) bool {
 	}
 	return true;
 }
+
+		func TryToRestartContainers(c *Cluster) error {
+			log.Info("Try to start blocked containers")
+			var err error
+			hostConfig := &dockerclient.HostConfig{
+				MemorySwappiness: -1,
+			}
+
+			for _, container := range c.blockedContainers {
+				id := container.Names[0]
+				log.Info("#try " + id)
+				if hostConfig != nil {
+					err = c.StartContainer(container, hostConfig)
+				}
+			}
+
+				return err
+			}
+
 
 // StartContainer starts a container
 func (c *Cluster) StartContainer(container *cluster.Container, hostConfig *dockerclient.HostConfig) error {

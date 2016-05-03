@@ -37,7 +37,6 @@ func NewEventHandlers() *EventHandlers {
 func (eh *EventHandlers) Handle(e *Event) {
 	eh.RLock()
 	defer eh.RUnlock()
-
 	for h := range eh.eventHandlers {
 		if err := h.Handle(e); err != nil {
 			log.Error(err)
