@@ -193,20 +193,20 @@ func isAllDependanciesReady(c *Cluster, dependancies []string) bool {
 // StartContainer starts a container
 func (c *Cluster) StartContainer(container *cluster.Container, hostConfig *dockerclient.HostConfig) error {
 	//Get dependancies
-	var affinities []string
-	for _, affinity := range container.Config.Affinities() {
-		r, _ := regexp.Compile(`container==(.*)`)
-		result := r.FindStringSubmatch(affinity)
+	var dependencies []string
+	for _, env := range container.Config.Env {
+		r, _ := regexp.Compile(`after:container==(.*)`)
+		result := r.FindStringSubmatch(env)
 		for _, substring := range result {
 			if !r.MatchString(substring) {
-				affinities = append(affinities, "/" + substring)
+				dependencies = append(dependencies, "/" + substring)
 			}
 		}
 	}
 
 	//TODO start if ok, else add to waiting list and refresh if signal
-	if isAllDependanciesReady(c, affinities) {
-	  log.Info("ok, start the container")
+	if isAllDependanciesReady(c, dependencies) {
+	  log.Info("ok! start the container")
 		c.runningContainers[container.Names[0]] = container
 		return container.Engine.StartContainer(container.ID, hostConfig)
 	}

@@ -1152,13 +1152,6 @@ func (e *Engine) updateSpecs() error {
 								case "container":
 									switch msg.Action {
 									case "die", "kill", "oom", "pause", "start", "restart", "stop", "unpause", "rename", "exited":
-										switch msg.Action {
-										case "die", "kill", "stop", "exited":
-											e.emitEvent("container_finish")
-											log.Info("A container is finish : ")
-											log.Info(msg)
-										default:
-										}
 										e.refreshContainer(msg.ID, true)
 									default:
 										e.refreshContainer(msg.ID, false)
